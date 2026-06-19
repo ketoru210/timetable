@@ -1,6 +1,6 @@
 /* Class Timetable — offline service worker (single-page app).
    Bump CACHE when index.html or assets change to force an update. */
-const CACHE = "timetable-v1";
+const CACHE = "timetable-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -26,10 +26,24 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
-// Cache-first: the timetable is static, so serve instantly from cache and
-// fall back to the network only for anything not yet stored.
+// HTML: network-first (always get the freshest timetable, fall back offline).
+// Other assets: cache-first (icons/fonts rarely change, serve instantly).
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+
+  if (e.request.mode === "navigate") {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put("./index.html", copy));
+          return res;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then((hit) => hit || fetch(e.request))
   );
